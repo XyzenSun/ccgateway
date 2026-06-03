@@ -109,7 +109,7 @@ get_latest_release_tag() {
         || error "Failed to fetch releases from GitHub"
 
     local tag
-    tag=$(echo "$releases_json" | grep -oE '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"/"/;s/"$//')
+    tag=$(echo "$releases_json" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name" *: *"\([^"]*\)".*/\1/')
 
     if [ -z "$tag" ]; then
         error "No release found."
@@ -161,12 +161,12 @@ download_release() {
     esac
 
     local bin_filename="${BINARY_NAME}-${target}${ext}"
-    local script_filename="${SCRIPT_NAME}"
     local github_base="https://github.com/${REPO}/releases/download/${tag}"
+    local raw_base="https://raw.githubusercontent.com/${REPO}/main"
 
     local bin_url="${DOWNLOAD_PROXY}${github_base}/${bin_filename}"
     local checksum_url="${DOWNLOAD_PROXY}${github_base}/${bin_filename}.sha256"
-    local script_url="${DOWNLOAD_PROXY}${github_base}/${script_filename}"
+    local script_url="${DOWNLOAD_PROXY}${raw_base}/${SCRIPT_NAME}"
 
     if [[ -n "$DOWNLOAD_PROXY" ]]; then
         info "Using proxy: ${DOWNLOAD_PROXY}"
@@ -197,23 +197,20 @@ download_release() {
         fi
     fi
 
-    # 下载管理脚本
+    # 下载管理脚本 (从仓库 main 分支)
     info "Downloading management script..."
-    if download_with_progress "${tmp_dir}/${script_filename}" "$script_url" "Downloading: ${script_filename}"; then
+    if download_with_progress "${install_dir}/${SCRIPT_NAME}" "$script_url" "Downloading: ${SCRIPT_NAME}"; then
+        chmod +x "${install_dir}/${SCRIPT_NAME}"
         success "Management script downloaded."
     else
-        warn "Management script not found in release, skipping."
+        warn "Management script download failed, you can manually get it from:"
+        warn "  ${raw_base}/${SCRIPT_NAME}"
     fi
 
     # 安装到目标目录
     mkdir -p "$install_dir/data"
     mv "${tmp_dir}/${bin_filename}" "${install_dir}/${BINARY_NAME}${ext}"
     chmod +x "${install_dir}/${BINARY_NAME}${ext}"
-
-    if [ -f "${tmp_dir}/${script_filename}" ]; then
-        mv "${tmp_dir}/${script_filename}" "${install_dir}/${script_filename}"
-        chmod +x "${install_dir}/${script_filename}"
-    fi
 
     success "Installed ${BINARY_NAME} to ${install_dir}/${BINARY_NAME}${ext}"
 }
