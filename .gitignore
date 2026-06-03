@@ -1,0 +1,11 @@
+brainstorm/*/
+!brainstorm/specs/
+!brainstorm/specs/**
+
+# Runtime / binary / temp
+data/
+.tmp/
+.claude/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

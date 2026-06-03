@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            target: x86_64-linux
+          - goos: linux
+            goarch: arm64
+            target: aarch64-linux
+          - goos: darwin
+            goarch: amd64
+            target: x86_64-darwin
+          - goos: darwin
+            goarch: arm64
+            target: aarch64-darwin
+          - goos: windows
+            goarch: amd64
+            target: x86_64-windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          ext=""
+          if [ "$GOOS" = "windows" ]; then ext=".exe"; fi
+          go build -o "claude-code-gateway-${{ matrix.target }}${ext}" ./cmd/claude-code-gateway/
+
+      - name: Generate SHA256 checksum
+        run: |
+          ext=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
+          filename="claude-code-gateway-${{ matrix.target }}${ext}"
+          sha256sum "$filename" > "${filename}.sha256"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-code-gateway-${{ matrix.target }}
+          path: |
+            claude-code-gateway-${{ matrix.target }}*
+          retention-days: 1
+
+  create-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
